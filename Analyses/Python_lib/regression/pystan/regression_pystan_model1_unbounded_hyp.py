@@ -105,8 +105,9 @@ def RunStan(df_flatfile, stan_model_fname,
     n_sta = len(data_sta)
     #verify no collocated stations
     sta_dist_min = np.min([np.linalg.norm(x_sta - np.delete(X_sta,k, axis=0), axis=1).min() for k, x_sta in enumerate(X_sta) ])
+    print(sta_dist_min)
     assert(sta_dist_min > 5e-5),'Error. Singular covariance matrix due to collocated stations'
-
+    
     #ground-motion observations  
     y_data = df_flatfile[res_name].to_numpy().copy()
     

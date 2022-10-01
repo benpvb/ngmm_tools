@@ -94,10 +94,10 @@ def RunStan(df_flatfile, df_cellinfo, df_celldist, stan_model_fname,
     if not df_cellinfo.index.name == 'cellid':
         df_cellinfo.set_index('cellid', drop=True, inplace=True)
     
-    #number of data
+    # number of data
     n_data = len(df_flatfile)
 
-    #earthquake data
+    # earthquake data
     data_eq_all = df_flatfile[['eqid','mag','eqX', 'eqY']].values
     _, eq_idx, eq_inv = np.unique(df_flatfile[['eqid']], axis=0, return_inverse=True, return_index=True)
     data_eq = data_eq_all[eq_idx,:]
@@ -120,6 +120,7 @@ def RunStan(df_flatfile, df_cellinfo, df_celldist, stan_model_fname,
     #cell data
     #reorder and only keep records included in the flatfile
     df_celldist = df_celldist.reindex(df_flatfile.index)
+    
     #cell info
     cell_ids_all   = df_cellinfo.index
     cell_names_all = df_cellinfo.cellname
@@ -130,13 +131,13 @@ def RunStan(df_flatfile, df_cellinfo, df_celldist, stan_model_fname,
     cell_ids_valid   = cell_ids_all[i_cells_valid]
     cell_names_valid = cell_names_all[i_cells_valid]
     celldist_valid   = celldist_all.loc[:,cell_names_valid] #cell-distance with only non-zero cells
-    #number of cells
+    # number of cells
     n_cell = celldist_all.shape[1]
     n_cell_valid = celldist_valid.shape[1]
-    #cell coordinates
+    # cell coordinates
     X_cells_valid = df_cellinfo.loc[i_cells_valid,['mptX','mptY']].values
 
-    #print Rrup missfits
+    # print Rrup missfits
     print('max R_rup misfit', (df_flatfile.Rrup.values - celldist_valid.sum(axis=1)).abs().max())
     stan_data = {'N':        n_data,
                  'NEQ':      n_eq,
@@ -171,7 +172,7 @@ def RunStan(df_flatfile, df_cellinfo, df_celldist, stan_model_fname,
             if (not pystan_parallel) or n_cpu<=n_chains:
                 #compile 
                 stan_model = pystan.StanModel(model_code=stan_model_code)
-                #full Bayesian statistics
+                # full Bayesian statistics
                 stan_fit = stan_model.sampling(data=stan_data, iter=n_iter, chains = n_chains, refresh=10, control = control_stan)
             else:   
                 #number of cores per chain
@@ -181,18 +182,18 @@ def RunStan(df_flatfile, df_cellinfo, df_celldist, stan_model_fname,
                 extra_compile_args = ['-pthread', '-DSTAN_THREADS']
                 #compile 
                 stan_model = pystan.StanModel(model_code=stan_model_code, extra_compile_args=extra_compile_args)
-                #full Bayesian statistics
+                # full Bayesian statistics
                 stan_fit = stan_model.sampling(data=stan_data, iter=n_iter, chains = n_chains, refresh=1, control = control_stan)
         elif pystan_ver == 3:
             import nest_asyncio
             import stan
             nest_asyncio.apply()
-            #compile 
+            # compile 
             stan_model = stan.build(stan_model_code, data=stan_data, random_seed=1)
-            #full Bayesian statistics
+            # full Bayesian statistics
             stan_fit = stan_model.sample(num_chains=n_chains, num_samples=n_iter, max_depth=max_treedepth, delta=adapt_delta)
         
-        #save stan model and fit
+        # save stan model and fit
         pathlib.Path(out_dir).mkdir(parents=True, exist_ok=True) 
         with open(stan_fit_fname, "wb") as f:
             pickle.dump({'model' : stan_model, 'fit' : stan_fit}, f, protocol=-1)
@@ -208,12 +209,12 @@ def RunStan(df_flatfile, df_cellinfo, df_celldist, stan_model_fname,
     #============================
     ## Extract posterior samples
     # ---------------------------
-    #hyper-parameters
+    # hyper-parameters
     col_names_hyp = ['dc_0','ell_1e', 'ell_1as', 'omega_1e', 'omega_1as', 'omega_1bs',
                      'mu_cap', 'ell_ca1p', 'omega_ca1p', 'omega_ca2p',
                      'phi_0','tau_0']
 
-    #non-ergodic terms
+    # non-ergodic terms
     col_names_dc_1e  = ['dc_1e.%i'%(k)    for k in range(n_eq)]
     col_names_dc_1as = ['dc_1as.%i'%(k)   for k in range(n_sta)]
     col_names_dc_1bs = ['dc_1bs.%i'%(k)   for k in range(n_sta)]
@@ -221,9 +222,9 @@ def RunStan(df_flatfile, df_cellinfo, df_celldist, stan_model_fname,
     col_names_cap    = ['c_cap.%i'%(c_id) for c_id in cell_ids_valid]
     col_names_all = col_names_hyp + col_names_dc_1e + col_names_dc_1as + col_names_dc_1bs + col_names_cap + col_names_dB
     
-    #summarize raw posterior distributions
+    # summarize raw posterior distributions
     stan_posterior = np.stack([stan_fit[c_n].flatten() for c_n in col_names_hyp], axis=1)
-    #adjustment terms 
+    # adjustment terms 
     if pystan_ver == 2:
         stan_posterior = np.concatenate((stan_posterior, stan_fit['dc_1e']),  axis=1)
         stan_posterior = np.concatenate((stan_posterior, stan_fit['dc_1as']), axis=1)
@@ -237,7 +238,7 @@ def RunStan(df_flatfile, df_cellinfo, df_celldist, stan_model_fname,
         stan_posterior = np.concatenate((stan_posterior, stan_fit['c_cap'].T),  axis=1)
         stan_posterior = np.concatenate((stan_posterior, stan_fit['dB'].T),     axis=1)
     
-    #save raw-posterior distribution
+    # save raw-posterior distribution
     df_stan_posterior_raw = pd.DataFrame(stan_posterior, columns = col_names_all)
     df_stan_posterior_raw.to_csv(out_dir + out_fname + '_stan_posterior_raw' + '.csv', index=False)
     
@@ -254,7 +255,7 @@ def RunStan(df_flatfile, df_cellinfo, df_celldist, stan_model_fname,
     perc_array = np.arange(0.01,0.99,0.01)    
     df_stan_posterior = df_stan_posterior_raw[col_names_hyp].quantile(perc_array)
     df_stan_posterior.index.name = 'prc'
-    df_stan_posterior .to_csv(out_dir + out_fname + '_stan_hyperposterior' + '.csv', index=True)
+    df_stan_posterior.to_csv(out_dir + out_fname + '_stan_hyperposterior' + '.csv', index=True)
     
     del col_names_dc_1e, col_names_dc_1as, col_names_dc_1bs, col_names_dB
     del stan_posterior, col_names_all
@@ -271,12 +272,12 @@ def RunStan(df_flatfile, df_cellinfo, df_celldist, stan_model_fname,
     cells_ca_med = np.array([df_stan_posterior_raw.loc[:,'c_cap.%i'%(k)].median() for k in cell_ids_valid])
     cells_ca_sig = np.array([df_stan_posterior_raw.loc[:,'c_cap.%i'%(k)].std()    for k in cell_ids_valid])
     
-    #effect of anelastic attenuation in GM
+    # effect of anelastic attenuation in GM
     cells_LcA_mu  = celldist_valid.values @ cells_ca_mu
     cells_LcA_med = celldist_valid.values @ cells_ca_med
     cells_LcA_sig = np.sqrt(np.square(celldist_valid.values) @ cells_ca_sig**2)
     
-    #summary attenuation cells
+    # summary attenuation cells
     catten_summary = np.vstack((np.tile(c_a_erg,  n_cell_valid),
                                 cells_ca_mu,
                                 cells_ca_med,
@@ -290,12 +291,12 @@ def RunStan(df_flatfile, df_cellinfo, df_celldist, stan_model_fname,
     
     # GMM coefficients
     #---  ---  ---  ---  ---  ---  ---  ---
-    #constant shift coefficient
+    # constant shift coefficient
     coeff_0_mu  = df_stan_posterior_raw.loc[:,'dc_0'].mean()   * np.ones(n_data)
     coeff_0_med = df_stan_posterior_raw.loc[:,'dc_0'].median() * np.ones(n_data)
     coeff_0_sig = df_stan_posterior_raw.loc[:,'dc_0'].std()    * np.ones(n_data)
     
-    #spatially varying earthquake constant coefficient
+    # spatially varying earthquake constant coefficient
     coeff_1e_mu  = np.array([df_stan_posterior_raw.loc[:,f'dc_1e.{k}'].mean()   for k in range(n_eq)])
     coeff_1e_mu  = coeff_1e_mu[eq_inv]
     coeff_1e_med = np.array([df_stan_posterior_raw.loc[:,f'dc_1e.{k}'].median() for k in range(n_eq)])

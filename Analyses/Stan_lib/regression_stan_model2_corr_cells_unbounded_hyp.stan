@@ -78,6 +78,7 @@ model {
   vector[N] rec_nerg_dB;
   //effect anelastic attenuation
   vector[N] inatten;
+  //real ell_1e;
   
   //Aleatory Variability Terms
   phi_0 ~ lognormal(-1.20,0.3);
@@ -87,6 +88,7 @@ model {
   
   //non-ergodic hyper-parameters
   ell_1e  ~ inv_gamma(2.,50);
+  //ell_1e  = 40;
   ell_1as ~ inv_gamma(2.,50);
   omega_1e  ~ exponential(5);
   omega_1as ~ exponential(5);
